@@ -1,9 +1,9 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2025, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #include <QtAVPlayer/qavplayer.h>
 #include <QtAVPlayer/qavvideoframe.h>
@@ -119,6 +119,7 @@ int main(int argc, char *argv[])
     QObject::connect(&p, &QAVPlayer::audioFrame, &p, [&audioOutput](const QAVAudioFrame &frame) { audioOutput.play(frame); }, Qt::DirectConnection);
     QString file = argc > 1 ? QString::fromUtf8(argv[1]) : QString::fromLatin1("http://archive.org/download/big-bunny-sample-video/SampleVideo.ia.mp4");
     QString filter = argc > 2 ? QString::fromUtf8(argv[2]) : QString();
+    QString output = argc > 3 ? QString::fromUtf8(argv[3]) : QString();
 
     QObject::connect(&p, &QAVPlayer::stateChanged, [&](auto s) { qDebug() << "stateChanged" << s << p.mediaStatus(); });
     QObject::connect(&p, &QAVPlayer::mediaStatusChanged, [&](auto status) {
@@ -179,7 +180,7 @@ int main(int argc, char *argv[])
         if (io->open(QIODevice::ReadOnly))
             qrc.reset(new QAVIODevice(io));
     }
-    p.setSource(file, qrc);
+    p.setSource(file, qrc, output);
     p.setFilter(filter);
     //p.setSynced(false);
 

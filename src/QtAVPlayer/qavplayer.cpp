@@ -1,12 +1,13 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2025, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #include "qavplayer.h"
 #include "qavdemuxer_p.h"
+#include "qavmuxer_p.h"
 #include "qaviodevice.h"
 #include "qavvideocodec_p.h"
 #include "qavaudiocodec_p.h"
@@ -111,6 +112,7 @@ public:
     QAVPlayer *q_ptr = nullptr;
     QString url;
     QSharedPointer<QAVIODevice> dev;
+    QString outputFilename;
     QAVPlayer::MediaStatus mediaStatus = QAVPlayer::NoMedia;
     QList<PendingMediaStatus> pendingMediaStatuses;
     QAVPlayer::State state = QAVPlayer::StoppedState;
@@ -157,6 +159,7 @@ public:
 
     QList<QString> filterDescs;
     QAVFilters filters;
+    QAVMuxer muxer;
 };
 
 static QString err_str(int err)
@@ -520,6 +523,14 @@ void QAVPlayerPrivate::doLoad()
         return;
     }
 
+    if (!outputFilename.isEmpty()) {
+        ret = muxer.load(demuxer.avctx(), outputFilename);
+        if (ret < 0) {
+            setError(QAVPlayer::ResourceError, err_str(ret));
+            return;
+        }
+    }
+
     applyFilters(true, {});
     dispatch([this]() -> void {
         qCDebug(lcAVPlayer) << "[" << url << "]: Loaded, seekable:" << demuxer.seekable() << ", duration:" << demuxer.duration();
@@ -602,6 +613,11 @@ void QAVPlayerPrivate::doDemux()
 
         auto packet = demuxer.read();
         if (packet.stream()) {
+            if (!outputFilename.isEmpty() && packet) {
+                // Make a copy
+                auto p = packet;
+                muxer.write(p);
+            }
             endOfFile(false);
             // Empty packet points to EOF and it needs to flush codecs
             switch (demuxer.currentCodecType(packet.packet()->stream_index)) {
@@ -625,6 +641,7 @@ void QAVPlayerPrivate::doDemux()
                 && filters.isEmpty()
                 && !isEndOfFile())
             {
+                muxer.close();
                 filters.flush();
                 endOfFile(true);
                 qCDebug(lcAVPlayer) << "EndOfMedia";
@@ -878,17 +895,18 @@ QAVPlayer::~QAVPlayer()
     d->terminate();
 }
 
-void QAVPlayer::setSource(const QString &url, const QSharedPointer<QAVIODevice> &dev)
+void QAVPlayer::setSource(const QString &url, const QSharedPointer<QAVIODevice> &dev, const QString &outputFilename)
 {
     Q_D(QAVPlayer);
-    if (d->url == url)
+    if (d->url == url && d->outputFilename == outputFilename)
         return;
 
-    qCDebug(lcAVPlayer) << __FUNCTION__ << ":" << url;
+    qCDebug(lcAVPlayer) << __FUNCTION__ << ":" << url << "output:" << outputFilename;
 
     d->terminate();
     d->url = url;
     d->dev = dev;
+    d->outputFilename = outputFilename;
     Q_EMIT sourceChanged(url);
     d->wait(true);
     d->quit = false;
