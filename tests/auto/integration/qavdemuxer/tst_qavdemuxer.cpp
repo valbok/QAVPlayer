@@ -1,11 +1,12 @@
-/*********************************************************
- * Copyright (C) 2020, Val Doroshchuk <valbok@gmail.com> *
- *                                                       *
- * This file is part of QtAVPlayer.                      *
- * Free Qt Media Player based on FFmpeg.                 *
- *********************************************************/
+/***************************************************************
+ * Copyright (C) 2020, 2025, Val Doroshchuk <valbok@gmail.com> *
+ *                                                             *
+ * This file is part of QtAVPlayer.                            *
+ * Free Qt Media Player based on FFmpeg.                       *
+ ***************************************************************/
 
 #include "qavdemuxer_p.h"
+#include "qavmuxer_p.h"
 #include "qavaudioframe.h"
 #include "qavvideoframe.h"
 #include "qaviodevice.h"
@@ -40,6 +41,7 @@ private slots:
     void metadata();
     void videoCodecs();
     void inputOptions();
+    void muxer();
 };
 
 void tst_QAVDemuxer::construction()
@@ -432,6 +434,28 @@ void tst_QAVDemuxer::inputOptions()
     QFileInfo file(testData("colors.mp4"));
     d.setInputOptions({{"user_agent", "QAVPlayer"}});
     QVERIFY(d.load(file.absoluteFilePath()) >= 0);
+}
+
+void tst_QAVDemuxer::muxer()
+{
+    QAVDemuxer d;
+    QAVMuxer m;
+    QFileInfo file(testData("colors.mp4"));
+
+    QVERIFY(d.load(file.absoluteFilePath()) >= 0);
+    QVERIFY(m.load(d.avctx(), "colors.mkv") >= 0);
+
+    QAVPacket p;
+    while ((p = d.read())) {
+        auto p2 = p;
+        QVERIFY(p);
+        QVERIFY(m.write(p2) >= 0);
+        QVERIFY(!p2);
+        QVERIFY(p.packet());
+        QVERIFY(p.duration() > 0);
+        QVERIFY(p.pts() >= 0);
+        QVERIFY(p.packet()->size > 0);
+    }
 }
 
 QTEST_MAIN(tst_QAVDemuxer)
